@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIRTEL Historical Data Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --bg:#F3F6FB;
+    --panel:#FFFFFF;
+    --panel-2:#F8FAFC;
+    --border:#D5DDE8;
+    --text:#1B2433;
+    --text-dim:#4B5A70;
+    --accent:#0F766E;
+    --accent-hover:#0B5D56;
+    --accent-dim:#99D5CE;
+    --accent-soft:#E3F4F1;
+    --amber:#B45309;
+    --green:#15803D;
+    --red:#B91C1C;
+    --mono:'IBM Plex Mono', monospace;
+    --sans:'IBM Plex Sans', sans-serif;
+    --shadow:0 1px 2px rgba(16,24,40,.06), 0 6px 18px rgba(16,24,40,.06);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:linear-gradient(180deg,#E6EFFA 0,#F3F6FB 320px) fixed;color:var(--text);font-family:var(--sans);line-height:1.55;}
+  .wrap{max-width:980px;margin:0 auto;padding:40px 24px 100px;}
+  .top{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;}
+  .top .chip{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--accent);background:var(--accent-soft);
+    border:1px solid var(--accent-dim);padding:4px 10px;border-radius:999px;text-transform:uppercase;font-weight:600;}
+  h1{font-family:var(--sans);font-weight:700;font-size:30px;margin:14px 0 6px;letter-spacing:-0.01em;color:var(--text);}
+  .sub{color:var(--text-dim);font-size:14.5px;margin-bottom:30px;}
+  .scan{position:relative;height:3px;background:#DCE5F0;margin:0 0 32px;overflow:hidden;border-radius:2px;}
+  .scan::after{content:'';position:absolute;top:0;left:-30%;width:30%;height:100%;
+    background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:sweep 3.5s ease-in-out infinite;}
+  @keyframes sweep{0%{left:-30%;} 60%{left:100%;} 100%{left:100%;}}
+  @keyframes rise{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:none;}}
+  @keyframes pop{0%{transform:scale(.6);}60%{transform:scale(1.15);}100%{transform:scale(1);}}
+  .step{background:var(--panel);border:1px solid var(--border);border-radius:12px;margin-bottom:20px;overflow:hidden;
+    box-shadow:var(--shadow);animation:rise .5s ease both;}
+  .step-head{display:flex;align-items:center;gap:14px;padding:16px 20px;border-bottom:1px solid var(--border);background:var(--panel-2);}
+  .step-num{font-family:var(--mono);font-weight:700;font-size:14px;color:var(--accent);background:var(--accent-soft);
+    border:2px solid var(--accent);width:30px;height:30px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .3s,color .3s;}
+  .step-num.done{background:var(--accent);color:#FFFFFF;border-color:var(--accent);animation:pop .4s ease;}
+  .step-title{font-weight:700;font-size:16px;color:var(--text);}
+  .step-desc{color:var(--text-dim);font-size:13px;margin-top:2px;}
+  .step-body{padding:20px;}
+  .filebox{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--panel-2);
+    border:1.5px dashed #9FB0C6;border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:13.5px;max-width:480px;
+    transition:border-color .2s,background .2s;}
+  .filebox:hover{border-color:var(--accent);background:var(--accent-soft);}
+  .filebox input[type=file]{display:none;}
+  .filebox label{cursor:pointer;color:var(--accent);font-weight:700;white-space:nowrap;}
+  .filebox label:hover{text-decoration:underline;}
+  .filename{color:var(--text-dim);font-family:var(--mono);font-size:12px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;max-width:240px;}
+  button{font-family:var(--sans);font-weight:600;font-size:14px;background:var(--accent);
+    color:#FFFFFF;border:1.5px solid var(--accent);padding:10px 18px;border-radius:8px;cursor:pointer;
+    transition:background .2s,transform .15s,box-shadow .2s,border-color .2s,color .2s;}
+  button:hover{background:var(--accent-hover);border-color:var(--accent-hover);transform:translateY(-1px);box-shadow:0 4px 10px rgba(15,118,110,.25);}
+  button:active{transform:translateY(0);box-shadow:none;}
+  button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #7CC4BC;outline-offset:2px;}
+  button:disabled{background:#E5EAF1;border-color:#E5EAF1;color:#8795A8;cursor:not-allowed;transform:none;box-shadow:none;}
+  button.secondary{background:#FFFFFF;border:1.5px solid #9FB0C6;color:var(--text);}
+  button.secondary:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);box-shadow:none;}
+  button.secondary.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-hover);}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  select,input[type=number]{background:#FFFFFF;color:var(--text);border:1.5px solid #9FB0C6;border-radius:8px;
+    padding:8px 10px;font-family:var(--mono);font-size:13px;transition:border-color .2s;}
+  select:hover,input[type=number]:hover{border-color:var(--accent);}
+  .status{font-family:var(--mono);font-size:12.5px;margin-top:12px;padding:10px 12px;border-radius:8px;
+    background:var(--panel-2);border-left:4px solid #9FB0C6;color:var(--text);white-space:pre-wrap;animation:rise .35s ease both;}
+  .status.ok{border-left-color:var(--green);color:#14532D;background:#ECFDF5;}
+  .status.err{border-left-color:var(--red);color:#7F1D1D;background:#FEF2F2;}
+  .status.warn{border-left-color:var(--amber);color:#78350F;background:#FFFBEB;}
+  table{border-collapse:collapse;width:100%;margin-top:0;font-size:12px;font-family:var(--mono);}
+  th,td{border:1px solid var(--border);padding:7px 10px;text-align:left;white-space:nowrap;}
+  th{background:var(--accent-soft);color:var(--accent-hover);font-weight:700;position:sticky;top:0;}
+  td{color:var(--text);}
+  tbody tr:nth-child(even) td{background:var(--panel-2);}
+  tbody tr:hover td{background:#E8F1FB;}
+  .tablewrap{max-height:280px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:10px;animation:rise .4s ease both;}
+  .preview-note{font-size:12px;color:var(--text-dim);margin-top:6px;}
+  .col-check{display:inline-flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);
+    border-radius:6px;padding:6px 10px;margin:3px 4px 3px 0;font-size:12.5px;font-family:var(--mono);color:var(--text);
+    transition:border-color .2s,background .2s;}
+  .col-check:hover{border-color:var(--accent);background:var(--accent-soft);}
+  .col-check input{accent-color:var(--accent);}
+  .stat-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;}
+  .stat{flex:1;min-width:130px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;
+    transition:transform .2s,box-shadow .2s;}
+  .stat:hover{transform:translateY(-2px);box-shadow:var(--shadow);}
+  .stat .n{font-family:var(--mono);font-size:23px;font-weight:700;color:var(--accent);}
+  .stat .l{font-size:11.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;font-weight:600;}
+  .progressbar{height:8px;background:#E5EAF1;border-radius:4px;overflow:hidden;margin-top:10px;}
+  .progressbar-fill{height:100%;background:var(--accent);width:0%;transition:width .25s ease;}
+  footer{color:var(--text-dim);font-size:12px;text-align:center;margin-top:50px;font-family:var(--mono);}
+  .note{font-size:12.5px;color:var(--text-dim);margin-top:8px;line-height:1.6;}
+  .hu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px;}
+  .hu-card{border:1px solid var(--border);border-radius:12px;padding:16px;background:var(--panel-2);
+    transition:box-shadow .25s,transform .25s,border-color .25s;}
+  .hu-card:hover{box-shadow:var(--shadow);transform:translateY(-2px);border-color:var(--accent-dim);}
+  .hu-title{font-weight:700;font-size:15px;color:var(--text);}
+  .hu-sub{font-size:12.5px;color:var(--text-dim);margin-bottom:12px;}
+  .hu-count{font-family:var(--mono);font-size:28px;font-weight:700;color:var(--accent);}
+  .hu-count small{font-family:var(--sans);font-size:12px;color:var(--text-dim);font-weight:600;margin-left:6px;}
+  .hu-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 12px;font-size:13px;color:var(--text);}
+  .hu-row input{width:90px;}
+  .pagetabs{display:flex;gap:8px;margin:0 0 22px;padding:5px;background:#E1E9F4;border-radius:12px;width:max-content;max-width:100%;}
+  .pagetab{background:transparent;border:none;color:var(--text-dim);padding:9px 18px;border-radius:9px;font-weight:700;}
+  .pagetab:hover{background:#F1F6FC;color:var(--text);transform:none;box-shadow:none;}
+  .pagetab.active{background:#FFFFFF;color:var(--accent-hover);box-shadow:0 1px 4px rgba(16,24,40,.15);}
+  .page{animation:rise .4s ease both;}
+  textarea,input[type=date]{background:#FFFFFF;color:var(--text);border:1.5px solid #9FB0C6;border-radius:8px;padding:9px 10px;font-family:var(--mono);font-size:13px;transition:border-color .2s;}
+  textarea{width:100%;resize:vertical;}
+  textarea:hover,input[type=date]:hover,textarea:focus{border-color:var(--accent);}
+  .save-box{margin-top:18px;padding:14px 16px;border:1px solid var(--accent-dim);background:var(--accent-soft);border-radius:10px;}
+  .lbl{display:block;font-size:13px;font-weight:600;color:var(--text);margin:14px 0 6px;}
+  button.danger{background:#FFFFFF;border:1.5px solid #E2A3A3;color:var(--red);padding:5px 10px;font-size:12.5px;}
+  button.danger:hover{background:#FEF2F2;border-color:var(--red);box-shadow:none;}
+  fieldset.datesel{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:0;background:var(--panel-2);}
+  fieldset.datesel legend{font-size:13px;font-weight:700;color:var(--text);padding:0 6px;}
+  .qdate{width:150px;}
+  td.qnote{white-space:normal;min-width:180px;font-family:var(--sans);font-size:12px;}
+  td.qnote.err{color:var(--red);font-weight:600;} td.qnote.ok{color:var(--green);font-weight:600;} td.qnote.warn{color:var(--amber);}
+  @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top"><span class="chip">Local &middot; No data leaves this browser</span></div>
+  <h1>ICCID DATA PORTAL</h1>
+  <div class="sub">Merge historical SIM usage exports &rarr; clean ICCID &rarr; match against your ICCID/SIM_NO sheet &rarr; export for iConnect</div>
+  <div class="scan"></div>
+
+  <div class="pagetabs">
+    <button class="pagetab active" data-page="main">Match &amp; Export</button>
+    <button class="pagetab" data-page="history">Historical Data Report</button>
+  </div>
+
+  <div id="pageMain" class="page">
+  <!-- STEP 1 -->
+  <div class="step" id="step1">
+    <div class="step-head">
+      <div class="step-num" id="num1">1</div>
+      <div>
+        <div class="step-title">Upload usage data ZIP &amp; build master lookup</div>
+        <div class="step-desc">Upload the .zip of historical data-usage CSVs. Each SIM_NO is cleaned (strip spaces/commas/quotes, keep rightmost 19 digits) into a new ICCID_19 column, then all files are merged into one master table.</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <div class="filebox"><span class="filename" id="fnZip">No file selected</span><label for="fZip">Choose ZIP file</label></div>
+      <input type="file" id="fZip" accept=".zip">
+      <div class="row" style="margin-top:10px">
+        <button id="btnProcessZip">Process ZIP &amp; Build Master</button>
+      </div>
+      <div class="progressbar" id="progWrap1" style="display:none"><div class="progressbar-fill" id="progFill1"></div></div>
+      <div class="status" id="status1" style="display:none"></div>
+      <div id="preview1"></div>
+      <div class="note">Note: usage exports like these are often 1M+ rows across all files combined, which exceeds Excel's 1,048,576-rows-per-sheet limit. The master download below is a CSV for that reason — it opens fine in Excel, just can't be re-saved as a single .xlsx sheet if it's this large.</div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step" id="step2" style="display:none">
+    <div class="step-head">
+      <div class="step-num" id="num2">2</div>
+      <div>
+        <div class="step-title">Download master usage file (optional)</div>
+        <div class="step-desc">Keep a copy of the cleaned, merged usage master</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <div class="row">
+        <button id="dlMaster" class="secondary">Download Master Usage (.csv)</button>
+        <button id="toStep3">Continue to ICCID/SIM_NO Matching &rarr;</button>
+      </div>
+      <div class="save-box">
+        <div class="step-title" style="font-size:14.5px">Save this ZIP to daily history</div>
+        <div class="step-desc" style="margin-bottom:10px">Keeps each ICCID&rsquo;s data consumption for the chosen date so you can look it up later on the Historical Lookup page. Saving the same date again replaces it.</div>
+        <div class="row">
+          <span style="font-size:13px">Date</span><input type="date" id="saveDate">
+          <span style="font-size:13px">Usage column</span><select id="saveUsageCol"></select>
+          <button id="btnSaveDay">Save to history</button>
+        </div>
+        <div class="progressbar" id="progWrapSave" style="display:none"><div class="progressbar-fill" id="progFillSave"></div></div>
+        <div class="status" id="statusSave" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step" id="step3" style="display:none">
+    <div class="step-head">
+      <div class="step-num" id="num3">3</div>
+      <div>
+        <div class="step-title">Upload ICCID/SIM_NO sheet</div>
+        <div class="step-desc">This is your final output base — usage data gets matched onto it by ICCID</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <div class="filebox"><span class="filename" id="fn5">No file selected</span><label for="f5">Choose ICCID/SIM_NO File</label></div>
+      <input type="file" id="f5" accept=".xlsx,.xls,.csv">
+      <div class="row" style="margin-top:10px">
+        <span style="font-size:12px;color:var(--text-dim)">ICCID column in this file:</span>
+        <select id="usageIccidSelect"></select>
+      </div>
+      <div class="status" id="status3" style="display:none"></div>
+      <div id="preview3"></div>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step" id="step4" style="display:none">
+    <div class="step-head">
+      <div class="step-num" id="num4">4</div>
+      <div>
+        <div class="step-title">Choose usage columns to pull in, then run the match</div>
+        <div class="step-desc">Matched by ICCID_19 against the master built in Step 1</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <div class="note" style="margin:0 0 10px">For each usage column you tick, choose whether it fills an existing blank column in your uploaded file, or gets added as a new column.</div>
+      <div id="colChecks"></div>
+      <div class="row" style="margin-top:14px"><button id="btnRunLookup">Run Match &amp; Build Output</button></div>
+      <div class="status" id="status4" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="step" id="step5" style="display:none">
+    <div class="step-head">
+      <div class="step-num" id="num5">5</div>
+      <div><div class="step-title">Review &amp; download output</div></div>
+    </div>
+    <div class="step-body">
+      <div class="stat-row" id="statRow"></div>
+
+      <div id="statusTabsWrap" style="display:none">
+        <div class="note" style="margin:16px 0 0">Split by STATUS — each tab downloads separately as ICCID + the columns you filled above, in batches of 15,000 rows per file.</div>
+        <div class="row" id="statusTabs" style="margin-top:8px"></div>
+        <div id="statusPreview"></div>
+      </div>
+
+      <div id="preview5"></div>
+      <div class="row" style="margin-top:16px">
+        <button id="dlFinal">Download Full Combined (.xlsx)</button>
+        <button id="btnReset" class="secondary">Start Over</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 6 -->
+  <div class="step" id="step6" style="display:none">
+    <div class="step-head">
+      <div class="step-num" id="num6">6</div>
+      <div>
+        <div class="step-title">High-usage report (single file, no batches)</div>
+        <div class="step-desc">SIMs above a data-usage threshold, taken from the matched Bootstrap and Operational output</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <div id="huMsg"></div>
+      <div class="hu-grid" id="huGrid">
+        <div class="hu-card">
+          <div class="hu-title">Bootstrap &mdash; high usage</div>
+          <div class="hu-sub">Primary ICCID + Data Consumption (in MB)</div>
+          <div class="hu-row">Above <input type="number" id="thBootstrap" value="250" min="0" step="any"> MB</div>
+          <div class="hu-count"><span id="cntBootstrap">0</span><small>SIMs</small></div>
+          <div class="row" style="margin-top:12px"><button id="dlBootstrapHi">Download Bootstrap &gt; <span id="lblBootstrap">250</span> MB (.xlsx)</button></div>
+          <div id="prevBootstrap"></div>
+        </div>
+        <div class="hu-card">
+          <div class="hu-title">Operational &mdash; high usage</div>
+          <div class="hu-sub">Primary ICCID + Data Consumption (in MB)</div>
+          <div class="hu-row">Above <input type="number" id="thOperational" value="600" min="0" step="any"> MB</div>
+          <div class="hu-count"><span id="cntOperational">0</span><small>SIMs</small></div>
+          <div class="row" style="margin-top:12px"><button id="dlOperationalHi">Download Operational &gt; <span id="lblOperational">600</span> MB (.xlsx)</button></div>
+          <div id="prevOperational"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /pageMain -->
+
+  <div id="pageHistory" class="page" style="display:none">
+    <div class="step">
+      <div class="step-head"><div class="step-num">A</div><div>
+        <div class="step-title">Add reports to history</div>
+        <div class="step-desc">Upload one or more usage ZIP reports and confirm the date each one is for</div></div></div>
+      <div class="step-body">
+        <div class="filebox"><span class="filename" id="fnQueue">No files selected</span><label for="fQueue">Choose ZIP report(s)</label></div>
+        <input type="file" id="fQueue" accept=".zip" multiple>
+        <div id="queueList"></div>
+        <div class="row" style="margin-top:12px">
+          <button id="btnSaveQueue" disabled>Save reports to history</button>
+          <button class="secondary" id="btnClearQueue" disabled>Clear list</button>
+        </div>
+        <div class="progressbar" id="progWrapQ" style="display:none"><div class="progressbar-fill" id="progFillQ"></div></div>
+        <div class="status" id="statusQ" style="display:none"></div>
+        <div class="note">Reports saved from the Match &amp; Export page (Step 2) appear in the list below as well. Saving a date that already exists replaces it.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-head"><div class="step-num">B</div><div>
+        <div class="step-title">Stored daily data</div>
+        <div class="step-desc">Each ZIP saved from the Match &amp; Export page is kept here, one entry per date</div></div></div>
+      <div class="step-body">
+        <div id="dayList"></div>
+        <div class="note" id="storeInfo"></div>
+        <div class="note">Stored in this browser on this computer only (not shared with other people or devices). Clearing browser data removes it.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-head"><div class="step-num">C</div><div>
+        <div class="step-title">Generate consumption</div>
+        <div class="step-desc">Pick one date, several dates or a date range, give the ICCIDs you need, get one file with a consumption column per date</div></div></div>
+      <div class="step-body">
+        <fieldset class="datesel"><legend>Report dates</legend>
+          <div class="row" role="radiogroup" aria-label="How to choose dates">
+            <label class="col-check"><input type="radio" name="lkMode" value="single" checked> Single date</label>
+            <label class="col-check"><input type="radio" name="lkMode" value="multi"> Several dates</label>
+            <label class="col-check"><input type="radio" name="lkMode" value="range"> Date range</label>
+          </div>
+          <div id="lkSingleBox" class="row" style="margin-top:10px"><label for="lkDate" style="font-size:13px;font-weight:600">Date</label><select id="lkDate"></select></div>
+          <div id="lkMultiBox" style="display:none;margin-top:10px"></div>
+          <div id="lkRangeBox" class="row" style="display:none;margin-top:10px">
+            <label for="lkFrom" style="font-size:13px;font-weight:600">From</label><input type="date" id="lkFrom">
+            <label for="lkTo" style="font-size:13px;font-weight:600">To</label><input type="date" id="lkTo">
+            <span class="note" style="margin:0">Both dates are included. Only dates with a stored report are used.</span>
+          </div>
+          <div id="lkSelSummary" class="note" aria-live="polite"></div>
+        </fieldset>
+        <label class="lbl" for="lkPaste">Requested ICCIDs (paste, one per line)</label>
+        <textarea id="lkPaste" rows="5" placeholder="8991102606614957309&#10;8991102606614957291"></textarea>
+        <label class="lbl">&hellip;or upload a list</label>
+        <div class="filebox"><span class="filename" id="fnLk">No file selected</span><label for="fLk">Choose ICCID list (.xlsx/.csv)</label></div>
+        <input type="file" id="fLk" accept=".xlsx,.xls,.csv">
+        <div class="row" id="lkColRow" style="display:none;margin-bottom:6px"><span style="font-size:12.5px;color:var(--text-dim)">ICCID column in this file:</span><select id="lkCol"></select></div>
+        <div class="row" style="margin-top:12px">
+          <button id="btnLookup">Generate</button>
+          <label class="col-check" id="lkInclWrap"><input type="checkbox" id="lkIncl"> Include ICCIDs not found (blank consumption)</label>
+        </div>
+        <div class="progressbar" id="progWrapLk" style="display:none"><div class="progressbar-fill" id="progFillLk"></div></div>
+        <div class="status" id="statusLk" style="display:none"></div>
+        <div class="stat-row" id="lkStats" style="margin-top:14px"></div>
+        <div id="lkPrev"></div>
+        <div class="row" style="margin-top:14px"><button id="dlLookup" style="display:none">Download result (.xlsx)</button></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Runs entirely in your browser — nothing is uploaded to a server.</footer>
+</div>
+
+<script>
+// ---------- state ----------
+let masterMap = new Map();       // ICCID_19 -> row object (first occurrence wins)
+let masterHeaders = [];          // original usage columns (without ICCID_19)
+let masterRowCount = 0;
+let masterDupCount = 0;
+
+let HistoricalData = null;           // {headers, rows}
+let HistoricalIccidCol = null;
+
+let finalRows = [];
+let finalHeaders = [];
+let statusGroups = null;         // { statusValue: {headers, rows} } if a STATUS column is detected
+let statusColName = null;
+let filledTargetCols = [];       // headers that got filled/added this run, for the mini per-status exports
+
+function detectStatusHeader(headers){
+  return headers.find(h => /^status$/i.test(h.trim())) || headers.find(h => /status/i.test(h)) || null;
+}
+
+function guessTargetColumn(masterCol, dealerHeaders){
+  // fuzzy match e.g. "USED DATA-Total(in MB)" -> "Total Data Usage"
+  const norm = s => s.toLowerCase().replace(/[^a-z]/g,'');
+  const mc = norm(masterCol);
+  let best = null;
+  for(const h of dealerHeaders){
+    const dh = norm(h);
+    if(dh === mc){ return h; }
+    if((mc.includes('datausage') || mc.includes('usedtotal') || mc.includes('total')) &&
+       (dh.includes('datausage') || dh.includes('usage'))){
+      best = h;
+    }
+  }
+  return best;
+}
+
+// ---------- helpers ----------
+function cleanSimNo(raw){
+  if(raw === null || raw === undefined) return '';
+  const digits = String(raw).replace(/\D/g,'');
+  return digits.length >= 19 ? digits.slice(-19) : digits;
+}
+
+function detectIccidHeader(headers){
+  return headers.find(h => /iccid/i.test(h)) || headers.find(h => /sim.?no/i.test(h)) || null;
+}
+
+function setStatus(id, msg, cls){
+  const el = document.getElementById(id);
+  el.style.display = 'block';
+  el.className = 'status' + (cls ? (' '+cls) : '');
+  el.textContent = msg;
+}
+
+function renderPreview(containerId, headers, rows, limit=8){
+  const container = document.getElementById(containerId);
+  if(!rows.length){ container.innerHTML = ''; return; }
+  let html = '<div class="tablewrap"><table><thead><tr>';
+  headers.forEach(h => html += `<th>${h}</th>`);
+  html += '</tr></thead><tbody>';
+  rows.slice(0, limit).forEach(r=>{
+    html += '<tr>' + headers.map(h => `<td>${r[h] !== undefined ? r[h] : ''}</td>`).join('') + '</tr>';
+  });
+  html += '</tbody></table></div>';
+  html += `<div class="preview-note">Showing ${Math.min(limit, rows.length)} of ${rows.length} rows</div>`;
+  container.innerHTML = html;
+}
+
+function markDone(stepNum){
+  document.getElementById('num'+stepNum).classList.add('done');
+  document.getElementById('num'+stepNum).textContent = '\u2713';
+}
+
+function csvEscape(val){
+  const s = (val === null || val === undefined) ? '' : String(val);
+  if(/[",\r\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+  return s;
+}
+
+document.getElementById('fZip').addEventListener('change', (e)=>{
+  document.getElementById('fnZip').textContent = e.target.files[0] ? e.target.files[0].name : 'No file selected';
+});
+document.getElementById('f5').addEventListener('change', (e)=>{
+  document.getElementById('fn5').textContent = e.target.files[0] ? e.target.files[0].name : 'No file selected';
+});
+
+function parseCsvText(text){
+  return new Promise((resolve,reject)=>{
+    Papa.parse(text, {
+      header:true,
+      skipEmptyLines:true,
+      complete: (res)=> resolve(res.data),
+      error: reject
+    });
+  });
+}
+
+// ---------- STEP 1: process ZIP ----------
+document.getElementById('btnProcessZip').addEventListener('click', async ()=>{
+  const file = document.getElementById('fZip').files[0];
+  if(!file){ setStatus('status1','Choose a .zip file first.','err'); return; }
+
+  const btn = document.getElementById('btnProcessZip');
+  btn.disabled = true;
+  document.getElementById('progWrap1').style.display = 'block';
+  const fill = document.getElementById('progFill1');
+  fill.style.width = '2%';
+
+  masterMap = new Map();
+  masterHeaders = [];
+  masterRowCount = 0;
+  masterDupCount = 0;
+
+  try{
+    setStatus('status1', 'Opening ZIP...');
+    const zip = await JSZip.loadAsync(file);
+    const entries = Object.values(zip.files).filter(f => !f.dir && /\.csv$/i.test(f.name));
+
+    if(entries.length === 0){
+      setStatus('status1','No .csv files found inside the ZIP.','err');
+      btn.disabled = false;
+      return;
+    }
+
+    let shortCount = 0;
+    let previewRows = [];
+
+    for(let i=0; i<entries.length; i++){
+      const entry = entries[i];
+      setStatus('status1', `Processing file ${i+1} of ${entries.length}: ${entry.name} ...`);
+      fill.style.width = Math.round(((i)/entries.length)*100) + '%';
+      await new Promise(r=>setTimeout(r,0)); // let UI repaint
+
+      const text = await entry.async('string');
+      const rows = await parseCsvText(text);
+
+      if(rows.length && masterHeaders.length === 0){
+        masterHeaders = Object.keys(rows[0]);
+      }
+
+      const simCol = masterHeaders.find(h => /sim.?no/i.test(h)) || masterHeaders[0];
+
+      for(const row of rows){
+        const iccid19 = cleanSimNo(row[simCol]);
+        if(iccid19.length < 19) shortCount++;
+        row.ICCID_19 = iccid19;
+        if(!masterMap.has(iccid19)) masterMap.set(iccid19, row);
+        else masterDupCount++;
+        masterRowCount++;
+      }
+
+      if(previewRows.length < 5) previewRows = previewRows.concat(rows.slice(0,5));
+
+      fill.style.width = Math.round(((i+1)/entries.length)*100) + '%';
+      await new Promise(r=>setTimeout(r,0));
+    }
+
+    setStatus('status1',
+      `Merged ${entries.length} file(s). Total rows processed: ${masterRowCount.toLocaleString()}. ` +
+      `Unique ICCID_19: ${masterMap.size.toLocaleString()}.` +
+      (masterDupCount ? ` Duplicate ICCID_19 skipped: ${masterDupCount.toLocaleString()} (first occurrence kept).` : '') +
+      (shortCount ? ` Warning: ${shortCount} row(s) had fewer than 19 digits after cleaning.` : ''),
+      (masterDupCount || shortCount) ? 'warn' : 'ok'
+    );
+
+    renderPreview('preview1', [...masterHeaders,'ICCID_19'], previewRows, 5);
+    prepareSave(file.name);
+    markDone(1);
+    document.getElementById('step2').style.display = 'block';
+    document.getElementById('step2').scrollIntoView({behavior:'smooth'});
+  }catch(err){
+    setStatus('status1', 'Error processing ZIP: ' + err.message, 'err');
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+// ---------- STEP 2: download master ----------
+document.getElementById('dlMaster').addEventListener('click', ()=>{
+  const headers = [...masterHeaders, 'ICCID_19'];
+  const lines = [headers.map(csvEscape).join(',')];
+  for(const row of masterMap.values()){
+    lines.push(headers.map(h => csvEscape(row[h])).join(','));
+  }
+  const blob = new Blob([lines.join('\r\n')], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'merged_usage_master.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('toStep3').addEventListener('click', ()=>{
+  markDone(2);
+  document.getElementById('step3').style.display = 'block';
+  document.getElementById('step3').scrollIntoView({behavior:'smooth'});
+});
+
+// ---------- STEP 3: ICCID/SIM_NO file upload ----------
+function readWorkbookOrCsv(file){
+  return new Promise((resolve,reject)=>{
+    if(/\.csv$/i.test(file.name)){
+      const reader = new FileReader();
+      reader.onload = async (e)=>{
+        const rows = await parseCsvText(e.target.result);
+        const headers = rows.length ? Object.keys(rows[0]) : [];
+        resolve({headers, rows});
+      };
+      reader.onerror = reject;
+      reader.readAsText(file);
+    }else{
+      const reader = new FileReader();
+      reader.onload = (e)=>{
+        try{
+          const wb = XLSX.read(e.target.result, {type:'array'});
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+          const headers = rows.length ? Object.keys(rows[0]) : [];
+          resolve({headers, rows});
+        }catch(err){ reject(err); }
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    }
+  });
+}
+
+document.getElementById('f5').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  setStatus('status3','Reading file...');
+  try{
+    const data = await readWorkbookOrCsv(file);
+    HistoricalData = data;
+    const guess = detectIccidHeader(data.headers);
+    const sel = document.getElementById('usageIccidSelect');
+    sel.innerHTML = data.headers.map(h=>`<option value="${h}" ${h===guess?'selected':''}>${h}</option>`).join('');
+    HistoricalIccidCol = guess || data.headers[0];
+
+    setStatus('status3', `Loaded ${data.rows.length} row(s).${guess ? ' Auto-detected ICCID column: '+guess : ' Could not auto-detect — please confirm the dropdown above.'}`, guess ? 'ok' : 'warn');
+    renderPreview('preview3', data.headers, data.rows);
+
+    buildColumnChecklist();
+    markDone(3);
+    document.getElementById('step4').style.display = 'block';
+    document.getElementById('step4').scrollIntoView({behavior:'smooth'});
+  }catch(err){
+    setStatus('status3', 'Error reading file: ' + err.message, 'err');
+  }
+});
+
+document.getElementById('usageIccidSelect').addEventListener('change', (e)=>{
+  HistoricalIccidCol = e.target.value;
+});
+
+// ---------- STEP 4: column selection ----------
+function buildColumnChecklist(){
+  const container = document.getElementById('colChecks');
+  const dealerHeaders = HistoricalData.headers;
+
+  container.innerHTML = masterHeaders.map((c, idx) =>{
+    const defaultChecked = /used data-total/i.test(c) ? 'checked' : '';
+    const guess = guessTargetColumn(c, dealerHeaders);
+    const options = ['<option value="__new__">+ Create new column</option>']
+      .concat(dealerHeaders.map(h => `<option value="${h}" ${h===guess?'selected':''}>Fill existing: ${h}</option>`))
+      .join('');
+    return `
+      <div class="row" style="margin:4px 0">
+        <label class="col-check" style="margin:0"><input type="checkbox" class="colcb" data-idx="${idx}" value="${c}" ${defaultChecked}> ${c}</label>
+        <span style="color:var(--text-dim);font-size:12px">&rarr;</span>
+        <select class="coltarget" data-idx="${idx}">${options}</select>
+      </div>`;
+  }).join('');
+}
+
+document.getElementById('btnRunLookup').addEventListener('click', ()=>{
+  if(!HistoricalData){ setStatus('status4','Upload the file first.','err'); return; }
+
+  const checkboxes = [...document.querySelectorAll('#colChecks .colcb:checked')];
+  if(checkboxes.length === 0){ setStatus('status4','Select at least one column to pull.','err'); return; }
+
+  const dealerHeaders = [...HistoricalData.headers];
+  const mappings = checkboxes.map(cb=>{
+    const idx = cb.dataset.idx;
+    const masterCol = cb.value;
+    const targetSel = document.querySelector(`.coltarget[data-idx="${idx}"]`);
+    let target = targetSel.value;
+    if(target === '__new__'){
+      target = dealerHeaders.includes(masterCol) ? ('Usage_'+masterCol) : masterCol;
+      if(!dealerHeaders.includes(target)) dealerHeaders.push(target);
+    }
+    return {masterCol, target};
+  });
+
+  filledTargetCols = mappings.map(m => m.target);
+
+  let matched = 0, unmatched = 0;
+  finalRows = HistoricalData.rows.map(row=>{
+    const key = cleanSimNo(row[HistoricalIccidCol]);
+    const masterRow = masterMap.get(key);
+    const out = {...row};
+    mappings.forEach(({masterCol, target})=>{
+      out[target] = masterRow ? (masterRow[masterCol] !== undefined ? masterRow[masterCol] : '') : '';
+    });
+    if(masterRow) matched++; else unmatched++;
+    return out;
+  });
+
+  finalHeaders = dealerHeaders.includes('Match Found') ? dealerHeaders : [...dealerHeaders, 'Match Found'];
+  finalRows = finalRows.map(r => ({...r, 'Match Found': masterMap.has(cleanSimNo(r[HistoricalIccidCol])) ? 'Yes' : 'No'}));
+
+  setStatus('status4', `Match complete. ${matched} matched, ${unmatched} unmatched.`, unmatched > 0 ? 'warn' : 'ok');
+
+  document.getElementById('statRow').innerHTML = `
+    <div class="stat"><div class="n">${HistoricalData.rows.length}</div><div class="l">Input rows</div></div>
+    <div class="stat"><div class="n" style="color:var(--green)">${matched}</div><div class="l">Matched</div></div>
+    <div class="stat"><div class="n" style="color:${unmatched>0?'var(--red)':'var(--text-dim)'}">${unmatched}</div><div class="l">Unmatched</div></div>
+    <div class="stat"><div class="n">${masterMap.size.toLocaleString()}</div><div class="l">Master ICCIDs available</div></div>
+  `;
+  renderPreview('preview5', finalHeaders, finalRows, 10);
+
+  buildStatusTabs();
+  buildHighUsage();
+
+  markDone(4);
+  document.getElementById('step5').style.display = 'block';
+  document.getElementById('step5').scrollIntoView({behavior:'smooth'});
+});
+
+function buildStatusTabs(){
+  statusColName = detectStatusHeader(finalHeaders);
+  const wrap = document.getElementById('statusTabsWrap');
+
+  if(!statusColName){
+    wrap.style.display = 'none';
+    statusGroups = null;
+    return;
+  }
+
+  const groups = {};
+  finalRows.forEach(r=>{
+    const val = (r[statusColName] === undefined || r[statusColName] === null || r[statusColName] === '') ? '(blank)' : String(r[statusColName]);
+    if(!groups[val]) groups[val] = [];
+    groups[val].push(r);
+  });
+  statusGroups = groups;
+
+  const tabsEl = document.getElementById('statusTabs');
+  const miniCols = [HistoricalIccidCol, ...filledTargetCols];
+
+  tabsEl.innerHTML = Object.keys(groups).map(val =>
+    `<button class="secondary" data-status="${val}" onclick="showStatusTab('${val.replace(/'/g,"\\'")}')">${val} (${groups[val].length})</button>` +
+    `<button data-status-dl="${val}" onclick="downloadStatusTab('${val.replace(/'/g,"\\'")}')">Download ${val} (.xlsx)</button>`
+  ).join('');
+
+  wrap.style.display = 'block';
+  const firstKey = Object.keys(groups)[0];
+  if(firstKey) showStatusTab(firstKey);
+}
+
+function showStatusTab(val){
+  document.querySelectorAll('#statusTabs button.secondary').forEach(b => b.classList.toggle('active', b.dataset.status === val));
+  const miniCols = [HistoricalIccidCol, ...filledTargetCols];
+  renderPreview('statusPreview', miniCols, statusGroups[val], 10);
+}
+
+const STATUS_BATCH_SIZE = 15000;
+
+function downloadStatusTab(val){
+  const miniCols = [HistoricalIccidCol , ...filledTargetCols];
+
+  // Final-output-only renaming: ICCID -> Primary ICCID, Total Data Usage -> Data Consumption (in MB)
+  const outNameFor = (c) => {
+    if(c === HistoricalIccidCol) return 'Primary ICCID';
+    if(/^total data usage$/i.test(c)) return 'Data Consumption (in MB)';
+    return c;
+  };
+  const outHeaders = miniCols.map(outNameFor);
+  const textHeaders = ['Primary ICCID', 'Data Consumption (in MB)'];
+
+  const allRows = statusGroups[val].map(r=>{
+    const o = {};
+    miniCols.forEach(c => { o[outNameFor(c)] = r[c] === undefined || r[c] === null ? '' : String(r[c]); });
+    return o;
+  });
+
+  const safe = val.replace(/[^a-z0-9]/gi,'_');
+  const totalParts = Math.max(1, Math.ceil(allRows.length / STATUS_BATCH_SIZE));
+
+  const writeBatch = (partIdx) => {
+    const start = partIdx * STATUS_BATCH_SIZE;
+    const batchRows = allRows.slice(start, start + STATUS_BATCH_SIZE);
+    if(batchRows.length === 0) return;
+
+    const ws = XLSX.utils.json_to_sheet(batchRows, {header: outHeaders});
+
+    // Force text format on the two renamed columns so the 19-digit ICCID (and usage figure) aren't mangled by Excel
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    outHeaders.forEach((h, colIdx) => {
+      if(!textHeaders.includes(h)) return;
+      for(let R = range.s.r; R <= range.e.r; R++){
+        const addr = XLSX.utils.encode_cell({r:R, c:colIdx});
+        const cell = ws[addr];
+        if(cell){ cell.t = 's'; cell.z = '@'; }
+      }
+    });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, val.substring(0,31) || 'Sheet1');
+
+    const fname = totalParts > 1
+      ? `${safe}_output_batch${partIdx+1}of${totalParts}_${batchRows.length}rows.xlsx`
+      : `${safe}_output.xlsx`;
+    XLSX.writeFile(wb, fname);
+  };
+
+  // Stagger multi-file downloads slightly so browsers don't block/queue them from a single click
+  for(let i = 0; i < totalParts; i++){
+    setTimeout(() => writeBatch(i), i * 400);
+  }
+}
+
+// ---------- STEP 6: high-usage report ----------
+const HU_CFG = {
+  Bootstrap:   { re: /bootstrap/i,   cnt:'cntBootstrap',   th:'thBootstrap',   lbl:'lblBootstrap',   prev:'prevBootstrap',   btn:'dlBootstrapHi' },
+  Operational: { re: /operational/i, cnt:'cntOperational', th:'thOperational', lbl:'lblOperational', prev:'prevOperational', btn:'dlOperationalHi' }
+};
+const HU_HEADERS = ['Primary ICCID', 'Data Consumption (in MB)'];
+
+function huUsageCol(){
+  return filledTargetCols.find(c => /^total data usage$/i.test(c))
+      || filledTargetCols.find(c => /usage|consum/i.test(c))
+      || (filledTargetCols.length === 1 ? filledTargetCols[0] : null);
+}
+
+function huParse(v){
+  const n = parseFloat(String(v === undefined || v === null ? '' : v).replace(/,/g,'').trim());
+  return isNaN(n) ? null : n;
+}
+
+function huRows(kind){
+  const cfg = HU_CFG[kind];
+  const usageCol = huUsageCol();
+  if(!statusGroups || !usageCol) return [];
+  const threshold = huParse(document.getElementById(cfg.th).value);
+  if(threshold === null) return [];
+  const out = [];
+  Object.keys(statusGroups).filter(k => cfg.re.test(k)).forEach(k=>{
+    statusGroups[k].forEach(r=>{
+      const n = huParse(r[usageCol]);
+      if(n !== null && n > threshold){
+        out.push({ 'Primary ICCID': String(r[HistoricalIccidCol] === undefined || r[HistoricalIccidCol] === null ? '' : r[HistoricalIccidCol]),
+                   'Data Consumption (in MB)': String(r[usageCol]) });
+      }
+    });
+  });
+  return out;
+}
+
+function huRefresh(kind){
+  const cfg = HU_CFG[kind];
+  const rows = huRows(kind);
+  document.getElementById(cfg.cnt).textContent = rows.length.toLocaleString();
+  document.getElementById(cfg.lbl).textContent = document.getElementById(cfg.th).value;
+  document.getElementById(cfg.btn).disabled = rows.length === 0;
+  renderPreview(cfg.prev, HU_HEADERS, rows, 8);
+}
+
+function huDownload(kind){
+  const cfg = HU_CFG[kind];
+  const rows = huRows(kind);
+  if(!rows.length) return;
+  const ws = XLSX.utils.json_to_sheet(rows, {header: HU_HEADERS});
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for(let c = 0; c < HU_HEADERS.length; c++){
+    for(let R = range.s.r; R <= range.e.r; R++){
+      const cell = ws[XLSX.utils.encode_cell({r:R, c})];
+      if(cell){ cell.t = 's'; cell.z = '@'; }
+    }
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, kind + ' high usage');
+  const th = String(document.getElementById(cfg.th).value).replace(/[^0-9.]/g,'_');
+  XLSX.writeFile(wb, `${kind}_above_${th}MB.xlsx`);
+}
+
+function buildHighUsage(){
+  const step = document.getElementById('step6');
+  const msg = document.getElementById('huMsg');
+  const grid = document.getElementById('huGrid');
+  step.style.display = 'block';
+  const usageCol = huUsageCol();
+  if(!statusGroups){
+    msg.innerHTML = '<div class="status warn">No STATUS column was detected in your ICCID/SIM_NO sheet, so Bootstrap / Operational cannot be separated.</div>';
+    grid.style.display = 'none'; return;
+  }
+  if(!usageCol){
+    msg.innerHTML = '<div class="status warn">No data-usage column was selected in Step 4 (e.g. Total Data Usage), so there is nothing to filter on.</div>';
+    grid.style.display = 'none'; return;
+  }
+  msg.innerHTML = `<div class="note" style="margin:0 0 14px">Filtering on column <b>${usageCol}</b>. Only rows strictly above the threshold are included. Change a threshold to refresh the list.</div>`;
+  grid.style.display = '';
+  Object.keys(HU_CFG).forEach(huRefresh);
+}
+
+Object.keys(HU_CFG).forEach(kind=>{
+  document.getElementById(HU_CFG[kind].th).addEventListener('input', ()=> { if(statusGroups) huRefresh(kind); });
+  document.getElementById(HU_CFG[kind].btn).addEventListener('click', ()=> huDownload(kind));
+});
+
+// ---------- DAILY HISTORY STORE (IndexedDB) ----------
+// "Database": browser IndexedDB. Store 'days' = one metadata row per date.
+// Store 'groups' = per date, ICCIDs bucketed by prefix (all but last 4 digits); value is compact text lines "last4|usage".
+const DB_NAME = 'iccidPortalDB';
+function openDB(){
+  return new Promise((res, rej)=>{
+    const r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = ()=>{
+      const db = r.result;
+      db.createObjectStore('days', {keyPath:'date'});
+      db.createObjectStore('groups', {keyPath:['d','p']});
+    };
+    r.onsuccess = ()=> res(r.result);
+    r.onerror = ()=> rej(r.error);
+  });
+}
+const idbReq = (r)=> new Promise((res, rej)=>{ r.onsuccess = ()=>res(r.result); r.onerror = ()=>rej(r.error); });
+const txDone = (tx)=> new Promise((res, rej)=>{ tx.oncomplete = ()=>res(); tx.onerror = ()=>rej(tx.error); tx.onabort = ()=>rej(tx.error || new Error('Storage transaction aborted')); });
+const dayRange = (d)=> IDBKeyRange.bound([d, ''], [d, '\uffff']);
+const yieldUI = ()=> new Promise(r=>setTimeout(r,0));
+
+// ----- date + column helpers -----
+function isValidIsoDate(s){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(s || '')) return false;
+  const d = new Date(s + 'T00:00:00Z');
+  return !isNaN(d.getTime()) && d.toISOString().slice(0,10) === s;
+}
+function dateFromName(name){
+  const m = String(name).match(/(20\d{2})[-_.]?(\d{2})[-_.]?(\d{2})/);
+  if(!m) return '';
+  const s = `${m[1]}-${m[2]}-${m[3]}`;
+  return isValidIsoDate(s) ? s : '';
+}
+function detectUsageCol(headers, simCol){
+  const cols = headers.filter(h => h !== simCol);
+  const norm = s => s.toLowerCase().replace(/[^a-z]/g,'');
+  return cols.find(c => /^total data usage$/i.test(c)) || cols.find(c => norm(c).includes('useddatatotal')) || cols.find(c => /usage|consum/i.test(c)) || null;
+}
+
+// ----- save one day (shared by Step 2 on page 1 and the uploader on page 2) -----
+async function persistDay(date, pairs, col, count, onProg){
+  if(typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) navigator.storage.persist();
+  const groups = new Map();
+  for(const [k, u0] of pairs){
+    if(!k) continue;
+    const p = k.slice(0,-4), s = k.slice(-4);
+    const u = String(u0 === undefined || u0 === null ? '' : u0).replace(/[\r\n|]/g,' ');
+    let arr = groups.get(p); if(!arr){ arr = []; groups.set(p, arr); }
+    arr.push(s + '|' + u);
+  }
+  const db = await openDB();
+  try{
+    let tx = db.transaction(['days','groups'], 'readwrite');
+    tx.objectStore('groups').delete(dayRange(date));
+    tx.objectStore('days').delete(date);
+    await txDone(tx);
+    const entries = [...groups]; const BATCH = 200;
+    for(let i = 0; i < entries.length; i += BATCH){
+      tx = db.transaction('groups', 'readwrite');
+      const st = tx.objectStore('groups');
+      entries.slice(i, i + BATCH).forEach(([p, arr]) => st.put({d:date, p, t:arr.join('\n')}));
+      await txDone(tx);
+      if(onProg) onProg(Math.min(i + BATCH, entries.length), entries.length);
+      await yieldUI();
+    }
+    tx = db.transaction('days', 'readwrite');
+    tx.objectStore('days').put({date, count, usageCol:col, groups:entries.length, savedAt:Date.now()});
+    await txDone(tx);
+  } finally { db.close(); }
+}
+
+function prepareSave(zipName){
+  const sel = document.getElementById('saveUsageCol');
+  const simCol = masterHeaders.find(h => /sim.?no/i.test(h)) || masterHeaders[0];
+  const cols = masterHeaders.filter(h => h !== simCol);
+  const guess = detectUsageCol(masterHeaders, simCol) || cols[0];
+  sel.innerHTML = cols.map(c => `<option value="${c}" ${c===guess?'selected':''}>${c}</option>`).join('');
+  const today = new Date(); const pad = n => String(n).padStart(2,'0');
+  document.getElementById('saveDate').value = dateFromName(zipName) || `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+}
+
+document.getElementById('btnSaveDay').addEventListener('click', async ()=>{
+  const date = document.getElementById('saveDate').value;
+  const col = document.getElementById('saveUsageCol').value;
+  if(!masterMap.size){ setStatus('statusSave','Process a ZIP first.','err'); return; }
+  if(!isValidIsoDate(date)){ setStatus('statusSave','Choose the date this data is for.','err'); return; }
+  if(!window.indexedDB){ setStatus('statusSave','This browser does not support local storage (IndexedDB).','err'); return; }
+  const btn = document.getElementById('btnSaveDay'); btn.disabled = true;
+  const wrap = document.getElementById('progWrapSave'), fill = document.getElementById('progFillSave');
+  wrap.style.display = 'block'; fill.style.width = '2%';
+  try{
+    setStatus('statusSave','Preparing data...');
+    await yieldUI();
+    const pairs = (function*(){ for(const [k, row] of masterMap) yield [k, row[col]]; })();
+    await persistDay(date, pairs, col, masterMap.size, (done, total)=>{
+      fill.style.width = Math.round(done / total * 100) + '%';
+      setStatus('statusSave', `Saving ${done.toLocaleString()} of ${total.toLocaleString()} blocks...`);
+    });
+    setStatus('statusSave', `Saved ${masterMap.size.toLocaleString()} ICCIDs for ${date} (column: ${col}). Open the Historical Lookup page to query it.`, 'ok');
+  }catch(err){
+    setStatus('statusSave', 'Could not save: ' + (err && err.message ? err.message : err) + ' (storage may be full or blocked, e.g. in private browsing).', 'err');
+  }finally{ btn.disabled = false; }
+});
+
+// ----- parse one usage ZIP into a lean ICCID -> usage map (reuses cleanSimNo + parseCsvText) -----
+async function zipToUsageMap(file, onProg){
+  let zip;
+  try{ zip = await JSZip.loadAsync(file); }
+  catch(e){ throw new Error('This file is not a readable ZIP archive.'); }
+  const entries = Object.values(zip.files).filter(f => !f.dir && /\.csv$/i.test(f.name));
+  if(!entries.length) throw new Error('No .csv files found inside the ZIP.');
+  const map = new Map();
+  let simCol = null, useCol = null, rows = 0, dup = 0;
+  for(let i = 0; i < entries.length; i++){
+    if(onProg) onProg(i, entries.length);
+    await yieldUI();
+    const data = await parseCsvText(await entries[i].async('string'));
+    if(!data.length) continue;
+    if(!simCol){
+      const headers = Object.keys(data[0]);
+      simCol = headers.find(h => /sim.?no/i.test(h)) || headers[0];
+      useCol = detectUsageCol(headers, simCol);
+      if(!useCol) throw new Error('No data-usage column found in the CSV files (looked for a header like "USED DATA-Total", "Total Data Usage", or containing "usage"/"consum").');
+    }else if(!(simCol in data[0]) || !(useCol in data[0])){
+      throw new Error('CSV files inside the ZIP have different column headers.');
+    }
+    for(const row of data){
+      const k = cleanSimNo(row[simCol]);
+      if(!k) continue;
+      rows++;
+      if(map.has(k)) dup++; else map.set(k, row[useCol]);
+    }
+  }
+  if(!map.size) throw new Error('The ZIP contains no usable ICCID rows.');
+  return {map, usageCol:useCol, rows, dup, files:entries.length};
+}
+
+// ----- stored days -----
+let storedDates = [];   // ascending ISO dates that have a stored report
+
+async function listDays(){
+  const db = await openDB();
+  try{ return (await idbReq(db.transaction('days').objectStore('days').getAll())).sort((a,b)=> b.date.localeCompare(a.date)); }
+  finally{ db.close(); }
+}
+
+async function refreshDays(){
+  const box = document.getElementById('dayList');
+  const sel = document.getElementById('lkDate');
+  try{
+    const days = await listDays();
+    storedDates = days.map(d => d.date).sort();
+    if(!days.length){
+      box.innerHTML = '<div class="status warn">Nothing stored yet. Add ZIP reports above, or use &ldquo;Save to history&rdquo; in Step 2 of the Match &amp; Export page.</div>';
+      sel.innerHTML = '<option value="">No stored dates</option>';
+    }else{
+      box.innerHTML = '<div class="tablewrap"><table><thead><tr><th>Date</th><th>ICCIDs</th><th>Usage column</th><th>Saved on</th><th></th></tr></thead><tbody>' +
+        days.map(d => `<tr><td>${d.date}</td><td>${d.count.toLocaleString()}</td><td>${d.usageCol}</td><td>${new Date(d.savedAt).toLocaleString()}</td><td><button class="danger" data-del="${d.date}" aria-label="Delete stored data for ${d.date}">Delete</button></td></tr>`).join('') +
+        '</tbody></table></div>';
+      const prev = sel.value;
+      sel.innerHTML = days.map(d => `<option value="${d.date}">${d.date}</option>`).join('');
+      if(prev && storedDates.includes(prev)) sel.value = prev;
+    }
+    const multi = document.getElementById('lkMultiBox');
+    const checked = new Set([...multi.querySelectorAll('input:checked')].map(i => i.value));
+    multi.innerHTML = storedDates.length
+      ? storedDates.map(d => `<label class="col-check"><input type="checkbox" value="${d}" ${checked.has(d)?'checked':''}> ${d}</label>`).join('')
+      : '<span class="note">No stored dates yet.</span>';
+    const from = document.getElementById('lkFrom'), to = document.getElementById('lkTo');
+    if(storedDates.length){
+      from.min = to.min = storedDates[0]; from.max = to.max = storedDates[storedDates.length-1];
+      if(!from.value) from.value = storedDates[0];
+      if(!to.value) to.value = storedDates[storedDates.length-1];
+    }
+    updateSelSummary();
+    if(navigator.storage && navigator.storage.estimate){
+      const e = await navigator.storage.estimate();
+      document.getElementById('storeInfo').textContent = `Browser storage used: ${(e.usage/1048576).toFixed(1)} MB of about ${(e.quota/1073741824).toFixed(1)} GB available.`;
+    }
+  }catch(err){
+    box.innerHTML = '<div class="status err">Could not open local storage: ' + err.message + '</div>';
+  }
+}
+
+document.getElementById('dayList').addEventListener('click', async (e)=>{
+  const d = e.target.dataset && e.target.dataset.del;
+  if(!d) return;
+  if(!confirm('Delete stored data for ' + d + '?')) return;
+  const db = await openDB();
+  try{
+    const tx = db.transaction(['days','groups'], 'readwrite');
+    tx.objectStore('groups').delete(dayRange(d));
+    tx.objectStore('days').delete(d);
+    await txDone(tx);
+  } finally { db.close(); }
+  refreshDays();
+});
+
+// ----- page tabs -----
+document.querySelectorAll('.pagetab').forEach(b => b.addEventListener('click', ()=>{
+  document.querySelectorAll('.pagetab').forEach(x => x.classList.toggle('active', x === b));
+  document.getElementById('pageMain').style.display = b.dataset.page === 'main' ? 'block' : 'none';
+  document.getElementById('pageHistory').style.display = b.dataset.page === 'history' ? 'block' : 'none';
+  if(b.dataset.page === 'history') refreshDays();
+}));
+
+// ----- upload queue: several ZIP reports, each with its own date -----
+let queue = [], queueSeq = 0;
+const esc = (s)=> String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function queueIssue(item){
+  if(!item.date) return {cls:'err', msg:'Choose the report date.'};
+  if(!isValidIsoDate(item.date)) return {cls:'err', msg:'This is not a valid date.'};
+  if(queue.some(o => o !== item && o.date === item.date)) return {cls:'err', msg:'Another file in this list has the same date.'};
+  if(storedDates.includes(item.date)) return {cls:'warn', msg:'A report for this date is already stored and will be replaced.'};
+  if(item.fromName) return {cls:'warn', msg:'Date read from the file name. Please confirm it.'};
+  return {cls:'ok', msg:'Ready.'};
+}
+function queueValidation(){
+  const issues = queue.map(queueIssue);
+  return {issues, blocked: issues.some(i => i.cls === 'err')};
+}
+function updateQueueNotes(){
+  const {issues, blocked} = queueValidation();
+  queue.forEach((it, i) => {
+    const cell = document.getElementById('qn-' + it.id);
+    if(!cell) return;
+    if(it.result){ cell.className = 'qnote ' + it.result.cls; cell.textContent = it.result.msg; }
+    else { cell.className = 'qnote ' + issues[i].cls; cell.textContent = issues[i].msg; }
+  });
+  document.getElementById('btnSaveQueue').disabled = !queue.length || blocked || queue.some(q => q.busy);
+  document.getElementById('btnClearQueue').disabled = !queue.length || queue.some(q => q.busy);
+}
+function renderQueue(){
+  const box = document.getElementById('queueList');
+  if(!queue.length){ box.innerHTML = '<div class="note">No files added yet. Choose one or more usage ZIP reports.</div>'; updateQueueNotes(); return; }
+  box.innerHTML = '<div class="tablewrap"><table><thead><tr><th>File</th><th>Report date</th><th>Status</th><th></th></tr></thead><tbody>' +
+    queue.map(it => `<tr><td>${esc(it.file.name)}</td><td><input type="date" class="qdate" data-qdate="${it.id}" value="${esc(it.date)}" aria-label="Report date for ${esc(it.file.name)}"></td><td class="qnote" id="qn-${it.id}"></td><td><button class="danger" data-qrm="${it.id}" aria-label="Remove ${esc(it.file.name)}">Remove</button></td></tr>`).join('') +
+    '</tbody></table></div>';
+  updateQueueNotes();
+}
+function addToQueue(files){
+  const rejected = [];
+  for(const f of files){
+    if(!/\.zip$/i.test(f.name)){ rejected.push(f.name); continue; }
+    if(queue.some(q => q.file.name === f.name && q.file.size === f.size)) continue;
+    const d = dateFromName(f.name);
+    queue.push({id:++queueSeq, file:f, date:d, fromName:!!d});
+  }
+  document.getElementById('fnQueue').textContent = queue.length ? `${queue.length} file(s) in list` : 'No files selected';
+  renderQueue();
+  if(rejected.length) setStatus('statusQ', `Skipped ${rejected.length} file(s) that are not .zip.`, 'warn');
+}
+document.getElementById('fQueue').addEventListener('change', (e)=>{ addToQueue([...e.target.files]); e.target.value = ''; });
+document.getElementById('queueList').addEventListener('input', (e)=>{
+  const id = e.target.dataset && e.target.dataset.qdate; if(!id) return;
+  const it = queue.find(q => String(q.id) === id); if(!it) return;
+  it.date = e.target.value; it.fromName = false; it.result = null; updateQueueNotes();
+});
+document.getElementById('queueList').addEventListener('click', (e)=>{
+  const id = e.target.dataset && e.target.dataset.qrm; if(!id) return;
+  queue = queue.filter(q => String(q.id) !== id);
+  document.getElementById('fnQueue').textContent = queue.length ? `${queue.length} file(s) in list` : 'No files selected';
+  renderQueue();
+});
+document.getElementById('btnClearQueue').addEventListener('click', ()=>{ queue = []; document.getElementById('fnQueue').textContent = 'No files selected'; document.getElementById('statusQ').style.display = 'none'; renderQueue(); });
+
+document.getElementById('btnSaveQueue').addEventListener('click', async ()=>{
+  if(!window.indexedDB){ setStatus('statusQ','This browser does not support local storage (IndexedDB).','err'); return; }
+  if(queueValidation().blocked){ setStatus('statusQ','Fix the dates marked in red before saving.','err'); return; }
+  const wrap = document.getElementById('progWrapQ'), fill = document.getElementById('progFillQ');
+  wrap.style.display = 'block'; fill.style.width = '2%';
+  queue.forEach(q => { q.busy = true; q.result = null; }); updateQueueNotes();
+  let ok = 0, failed = 0;
+  for(let i = 0; i < queue.length; i++){
+    const it = queue[i];
+    try{
+      const r = await zipToUsageMap(it.file, (f, n)=> setStatus('statusQ', `File ${i+1} of ${queue.length} (${it.date}): reading CSV ${f+1} of ${n}...`));
+      await persistDay(it.date, r.map, r.usageCol, r.map.size, (d, t)=> setStatus('statusQ', `File ${i+1} of ${queue.length} (${it.date}): saving block ${d.toLocaleString()} of ${t.toLocaleString()}...`));
+      it.result = {cls:'ok', msg:`Saved ${r.map.size.toLocaleString()} ICCIDs (column: ${r.usageCol})` + (r.dup ? `; ${r.dup.toLocaleString()} duplicate rows skipped.` : '.')};
+      ok++;
+    }catch(err){
+      it.result = {cls:'err', msg:'Not saved: ' + (err && err.message ? err.message : 'unexpected error') };
+      failed++;
+    }
+    it.busy = false;
+    fill.style.width = Math.round((i+1) / queue.length * 100) + '%';
+    updateQueueNotes();
+  }
+  setStatus('statusQ', `${ok} report(s) saved` + (failed ? `, ${failed} failed (see the list).` : '.'), failed ? 'warn' : 'ok');
+  await refreshDays();
+});
+
+// ----- date selection (single / several / inclusive range) -----
+function selectReportDates(available, mode, opt){
+  const avail = [...new Set(available)].sort();
+  if(!avail.length) return {error:'No reports are stored yet.'};
+  if(mode === 'single'){
+    if(!opt.single || !avail.includes(opt.single)) return {error:'Choose a date that has a stored report.'};
+    return {dates:[opt.single]};
+  }
+  if(mode === 'multi'){
+    const picked = [...new Set(opt.multi || [])];
+    if(!picked.length) return {error:'Tick at least one date.'};
+    const bad = picked.filter(d => !avail.includes(d));
+    if(bad.length) return {error:'No stored report for: ' + bad.join(', ') + '.'};
+    return {dates:picked.sort()};
+  }
+  if(mode === 'range'){
+    const {from, to} = opt;
+    if(!isValidIsoDate(from) || !isValidIsoDate(to)) return {error:'Enter a valid start and end date.'};
+    if(from > to) return {error:'The start date is after the end date.'};
+    const dates = avail.filter(d => d >= from && d <= to);
+    if(!dates.length) return {error:`No stored reports between ${from} and ${to}.`};
+    return {dates};
+  }
+  return {error:'Unknown date selection mode.'};
+}
+function currentMode(){ const r = document.querySelector('input[name="lkMode"]:checked'); return r ? r.value : 'single'; }
+function currentSelection(){
+  return selectReportDates(storedDates, currentMode(), {
+    single: document.getElementById('lkDate').value,
+    multi: [...document.getElementById('lkMultiBox').querySelectorAll('input:checked')].map(i => i.value),
+    from: document.getElementById('lkFrom').value,
+    to: document.getElementById('lkTo').value
+  });
+}
+function updateSelSummary(){
+  const mode = currentMode();
+  document.getElementById('lkSingleBox').style.display = mode === 'single' ? 'flex' : 'none';
+  document.getElementById('lkMultiBox').style.display = mode === 'multi' ? 'block' : 'none';
+  document.getElementById('lkRangeBox').style.display = mode === 'range' ? 'flex' : 'none';
+  document.getElementById('lkInclWrap').style.display = mode === 'single' ? '' : 'none';
+  const s = currentSelection(), el = document.getElementById('lkSelSummary');
+  el.textContent = s.error ? s.error : `${s.dates.length} report date(s) selected: ${s.dates.join(', ')}`;
+}
+document.querySelectorAll('input[name="lkMode"]').forEach(r => r.addEventListener('change', updateSelSummary));
+['lkDate','lkFrom','lkTo'].forEach(id => document.getElementById(id).addEventListener('change', updateSelSummary));
+document.getElementById('lkMultiBox').addEventListener('change', updateSelSummary);
+
+// ----- lookup -----
+function collectRequestedKeys(pasteText, fileRows, col){
+  const raw = String(pasteText || '').split(/[\s,;]+/).filter(Boolean);
+  if(fileRows) fileRows.forEach(r => raw.push(r[col]));
+  const seen = new Set(), keys = [];
+  let short = 0, dups = 0;
+  raw.forEach(v => {
+    const k = cleanSimNo(v);
+    if(!k) return;
+    if(k.length < 19) short++;
+    if(seen.has(k)){ dups++; return; }
+    seen.add(k); keys.push(k);
+  });
+  return {keys, dups, short};
+}
+
+async function lookupDates(keys, dates, onProg){
+  const byPrefix = new Map();
+  keys.forEach(k => { const p = k.slice(0,-4); let a = byPrefix.get(p); if(!a){ a = []; byPrefix.set(p, a); } a.push(k); });
+  const prefixes = [...byPrefix];
+  const out = new Map();
+  const db = await openDB();
+  try{
+    for(let di = 0; di < dates.length; di++){
+      const date = dates[di];
+      const meta = await idbReq(db.transaction('days').objectStore('days').get(date));
+      if(!meta) throw new Error('No stored report for ' + date + '.');
+      const found = new Map();
+      for(let i = 0; i < prefixes.length; i += 2000){
+        const st = db.transaction('groups').objectStore('groups');
+        await Promise.all(prefixes.slice(i, i + 2000).map(async ([p, ks]) => {
+          const rec = await idbReq(st.get([date, p]));
+          if(!rec) return;
+          const m = new Map();
+          rec.t.split('\n').forEach(line => { const j = line.indexOf('|'); m.set(line.slice(0,j), line.slice(j+1)); });
+          ks.forEach(k => { const v = m.get(k.slice(-4)); if(v !== undefined) found.set(k, v); });
+        }));
+        if(onProg) onProg(di, dates.length, Math.min(i + 2000, prefixes.length), prefixes.length);
+        await yieldUI();
+      }
+      out.set(date, {found, usageCol: meta.usageCol});
+    }
+  } finally { db.close(); }
+  return out;
+}
+
+// single mode keeps the original two-column layout; several dates / range give one column per date
+function buildReport(keys, dates, results, mode, includeMissing){
+  if(mode === 'single'){
+    const f = results.get(dates[0]).found;
+    const rows = [];
+    keys.forEach(k => { if(f.has(k)) rows.push([k, f.get(k)]); else if(includeMissing) rows.push([k, '']); });
+    return {headers:['Primary ICCID','Data Consumption (in MB)'], rows};
+  }
+  const rows = keys.map(k => [k, ...dates.map(d => { const v = results.get(d).found.get(k); return v === undefined ? '' : v; })]);
+  return {headers:['Primary ICCID', ...dates.map(d => 'Data Consumption (in MB) - ' + d)], rows};
+}
+
+let lkFileRows = null, lkReport = null;
+document.getElementById('fLk').addEventListener('change', async (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  document.getElementById('fnLk').textContent = f.name;
+  try{
+    const data = await readWorkbookOrCsv(f);
+    if(!data.headers.length) throw new Error('The file has no rows.');
+    const guess = detectIccidHeader(data.headers) || data.headers[0];
+    document.getElementById('lkCol').innerHTML = data.headers.map(h => `<option value="${esc(h)}" ${h===guess?'selected':''}>${esc(h)}</option>`).join('');
+    document.getElementById('lkColRow').style.display = 'flex';
+    lkFileRows = data;
+    setStatus('statusLk', `Loaded ${data.rows.length.toLocaleString()} row(s) from file. Confirm the ICCID column, then click Look up.`, 'ok');
+  }catch(err){ lkFileRows = null; setStatus('statusLk', 'Error reading file: ' + err.message, 'err'); }
+});
+
+document.getElementById('btnLookup').addEventListener('click', async ()=>{
+  const sel = currentSelection();
+  if(sel.error){ setStatus('statusLk', sel.error, 'err'); return; }
+  const col = document.getElementById('lkCol').value;
+  const {keys, dups, short} = collectRequestedKeys(document.getElementById('lkPaste').value, lkFileRows, col);
+  if(!keys.length){ setStatus('statusLk','Paste or upload at least one ICCID.','err'); return; }
+  if(keys.length + 1 > 1048576){ setStatus('statusLk','Too many ICCIDs for one Excel sheet (limit 1,048,575). Split the list.','err'); return; }
+  const mode = currentMode();
+  const btn = document.getElementById('btnLookup'); btn.disabled = true;
+  const wrap = document.getElementById('progWrapLk'), fill = document.getElementById('progFillLk');
+  wrap.style.display = 'block'; fill.style.width = '2%';
+  setStatus('statusLk','Looking up...');
+  try{
+    const results = await lookupDates(keys, sel.dates, (di, n, done, total)=>{
+      fill.style.width = Math.round((di + done / total) / n * 100) + '%';
+      setStatus('statusLk', `Report ${di+1} of ${n} (${sel.dates[di]}): ${done.toLocaleString()} of ${total.toLocaleString()} blocks...`);
+    });
+    fill.style.width = '100%';
+    lkReport = buildReport(keys, sel.dates, results, mode, document.getElementById('lkIncl').checked);
+    lkReport.dates = sel.dates; lkReport.mode = mode;
+    const parts = sel.dates.map(d => `${d}: ${results.get(d).found.size.toLocaleString()} of ${keys.length.toLocaleString()} found`);
+    const notes = [];
+    if(dups) notes.push(`${dups.toLocaleString()} duplicate ICCID(s) ignored`);
+    if(short) notes.push(`${short.toLocaleString()} ICCID(s) have fewer than 19 digits (if your Excel stores ICCIDs as numbers, format that column as Text and re-upload)`);
+    const anyMissing = sel.dates.some(d => results.get(d).found.size < keys.length);
+    setStatus('statusLk', parts.join(' | ') + (notes.length ? '. ' + notes.join('; ') + '.' : ''), (anyMissing || notes.length) ? 'warn' : 'ok');
+    document.getElementById('lkStats').innerHTML =
+      `<div class="stat"><div class="n">${keys.length.toLocaleString()}</div><div class="l">Requested (unique)</div></div>` +
+      `<div class="stat"><div class="n">${sel.dates.length}</div><div class="l">Report date(s)</div></div>` +
+      `<div class="stat"><div class="n">${lkReport.rows.length.toLocaleString()}</div><div class="l">Rows in output</div></div>`;
+    renderPreview('lkPrev', lkReport.headers, lkReport.rows.slice(0,10).map(r => Object.fromEntries(lkReport.headers.map((h,i) => [h, r[i]]))), 10);
+    document.getElementById('dlLookup').style.display = lkReport.rows.length ? '' : 'none';
+  }catch(err){ setStatus('statusLk','Lookup failed: ' + err.message, 'err'); }
+  finally{ btn.disabled = false; }
+});
+
+document.getElementById('dlLookup').addEventListener('click', ()=>{
+  if(!lkReport || !lkReport.rows.length) return;
+  const ws = XLSX.utils.aoa_to_sheet([lkReport.headers, ...lkReport.rows]);
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for(let c = range.s.c; c <= range.e.c; c++) for(let R = range.s.r; R <= range.e.r; R++){ const cell = ws[XLSX.utils.encode_cell({r:R, c})]; if(cell){ cell.t = 's'; cell.z = '@'; } }
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Lookup');
+  const d = lkReport.dates;
+  XLSX.writeFile(wb, d.length === 1 ? `data_consumption_${d[0]}.xlsx` : `data_consumption_${d.length}dates_${d[0]}_to_${d[d.length-1]}.xlsx`);
+});
+
+renderQueue();
+
+// ---------- STEP 5: final download ----------
+document.getElementById('dlFinal').addEventListener('click', ()=>{
+  const ws = XLSX.utils.json_to_sheet(finalRows, {header: finalHeaders});
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  XLSX.writeFile(wb, 'iConnect_upload_ready.xlsx');
+  markDone(5);
+});
+
+document.getElementById('btnReset').addEventListener('click', ()=> location.reload());
+</script>
+</body>
+</html>
